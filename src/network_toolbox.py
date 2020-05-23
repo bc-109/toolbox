@@ -6,7 +6,7 @@
 # (c) 2011-2020 by Toussaint OTTAVI, t.ottavi@medi.fr
 #===============================================================================
 #
-# General-purpose betworking functions.
+# General-purpose networking functions.
 #
 #===============================================================================
 
