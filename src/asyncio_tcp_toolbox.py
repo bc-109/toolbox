@@ -161,8 +161,9 @@ class cTCPServerProtocol(asyncio.Protocol):
     else: 
       print ("ERROR - Incoming connection from an already connected client") 
       # TODO : replace transport (or delete / add)
-      
-    print ("%s : %s" % (self.server_name, self.parent.clients))  
+    
+    # Debug : print list of connected clients  
+    # print ("%s : %s" % (self.server_name, self.parent.clients))  
 
 
   #---------------------------------------------- Callback when data is received
@@ -191,29 +192,40 @@ class cTCPServerProtocol(asyncio.Protocol):
     # Check / remove from the list of connected clients    
     print('%s : Client %s:%d disconnected' % (self.server_name, self.client_ip, self.client_port))
     self.parent.clients.RemoveMember (self.client_ip, self.client_port)   
-    print ("%s : %s" % (self.server_name, self.parent.clients))  
+  
+    # Debug : print list of connected clients
+    # print ("%s : %s" % (self.server_name, self.parent.clients))  
     
 
   #--------------------------------------------------------- Send data to client
 
   def send_data(self, data):
     # print('%f : Sending data to %s' % (self.taskname, self.peername)) 
-    # self.transport.write(data)    
-    pass
-
+    self.transport.write(data)    
+    
 
 
 #===============================================================================
 # Class representing the list of all TCP clients connected to a server 
 #===============================================================================
 
+# Connected clients are stored in a dict :
+#  Key is a tuple (source_ip, source_port)
+#  Data is cTCPserverProtocol object          
+                                                   
 class cTCPConnectedClients(object):
    
   #----------------------------------------------------------------- Constructor
   
   def __init__(self):   
     self.clients = {}                            # Dict of the connected clients
+                                                                                        
 
+  #---------------------------------------- Get dictionnary of connected clients
+  
+  def Get(self):
+    return self.clients
+  
 
   #---------------------------------------------------------- Display procedures
   
@@ -252,7 +264,7 @@ class cTCPConnectedClients(object):
     
     key = '%s:%d' % (ip, port)
     client = cTCPConnectedClient (client_protocol, ip, port)    # Instantiate new client tracking object
-    self.clients[key] = client                            # Create it in the clients list         
+    self.clients[key] = client                                  # Create it in the clients list         
 
     return client
 
@@ -265,15 +277,6 @@ class cTCPConnectedClients(object):
     if to_remove is not None:
       key = '%s:%d' % (ip, port)
       del self.clients[key]
-
-
-  #------------------------------------ Send data to all connected clients
-  
-  def SendToAllClients (self, data):
-
-    for c in self.clients.values():
-      print ("  Send data to %s:%s" % (c.ip, c.port))
-      c.transport.write(data)                                       
 
 
 #===============================================================================
