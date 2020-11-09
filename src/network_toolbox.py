@@ -75,7 +75,7 @@ def GetDefaultIPAddress():
     addresses = GetIPInterfaceList()
     for i in addresses:
       (addr, mask, broadcast) = i    
-      if addr<>"127.0.0.1":
+      if addr!="127.0.0.1":
         address = i
         break
   except:
@@ -98,7 +98,7 @@ def GetIPInterfaceList():
         br = "127.0.0.1" if interface == "lo" else link['broadcast']        # netifaces does not return "broadcast" for loopback, we "simulate" it
         ip_list.append((ad, nm, br))
     except:
-      print "libnetwork: Unable to get parameters of interface %s :" % (interface)
+      print ("libnetwork: Unable to get parameters of interface %s :" % (interface))
 
   return ip_list
 
@@ -122,6 +122,24 @@ def FindFreeLocalPort(interface='127.0.0.1', start=50000, max_ports=512 ):
   UDPSock.close()
   return port
 
+
+#===============================================================================
+# Try to resolve hostname and update IP address
+#===============================================================================
+
+from socket import gethostbyname
+
+def CheckUpdateHost (host):
+
+  try:
+    ip = gethostbyname(host)
+  except:
+    print('Unable to resolve address (%s). This could be a temporary DNS issue.' %(host))    
+    ip = '0.0.0.0'
+    
+  return ip
+           
+    
 
 #===============================================================================
 # A TRIER 

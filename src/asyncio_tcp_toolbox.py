@@ -3,7 +3,7 @@
 
 #===============================================================================
 # Python3 Toolbox
-# (c) 2011-2020 by Toussaint OTTAVI, t.ottavi@medi.fr
+# (c) 2011-2020 by Toussaint OTTAVI, bc-109 Soft, t.ottavi@medi.fr
 #===============================================================================
 #
 # AsyncIO TCP client and server
