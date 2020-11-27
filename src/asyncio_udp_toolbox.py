@@ -51,14 +51,15 @@ from string_toolbox import DumpBufferHexa
 #                                                                              # 
 ################################################################################
 
-UDP_CLIENT_DEBUG = False              # Global flag for more verbose output
+
 
 #===============================================================================
 # UDP Client class - Simple UDP client, connects to an UDP "server"
 #===============================================================================
 
 class cUDPClient (asyncio.DatagramProtocol):
-
+ 
+  
   #----------------------------------------------------------------- Constructor
   
   def __init__(self, _name, _server, _port, _loop, _logger):                       
@@ -71,7 +72,7 @@ class cUDPClient (asyncio.DatagramProtocol):
        
     self.loop = _loop                # AsyncIO loop object 
     self.logger = _logger            # Logger object
-    self.debug = UDP_CLIENT_DEBUG    
+    self.debug =  True               # Global flag for more verbose output   
     
     
   #-------------------------------------------------------------- When connected
@@ -91,7 +92,7 @@ class cUDPClient (asyncio.DatagramProtocol):
 
     # Validate that we receveived this packet from the right master - security check !
     if _sockaddr != (self.server_ip, self.server_port):
-      self._logger.warning ('Unexpected RX packet from %s:%s' % (_sockaddr))
+      self.logger.warning ('Unexpected RX packet from %s:%s' % (_sockaddr))
       
     else : 
       
@@ -103,11 +104,16 @@ class cUDPClient (asyncio.DatagramProtocol):
 #---------------------------------------------------------- Send packet to server
     
   def send_server(self, _packet):
-         
-    self.transport.sendto(_packet, (self.server_ip, self.server_port))
 
-    if self._debug:  
-      self._logger.debug('TX Packet to %s:%s (length : %d bytes)\n%s\n----',self._master_ip, self._master_port, len(_packet), DumpBufferHexa(_packet))
+    # if True : # self.debug:  
+      # self.logger.debug('TX Packet to %s:%s (length : %d bytes)\n%s\n----',self.server_ip, self.server_port, len(_packet), DumpBufferHexa(_packet))
+      # print('TX Packet to %s:%s (length : %d bytes)\n%s\n----',self.server_ip, self.server_port, len(_packet), DumpBufferHexa(_packet))
+         
+    try:   
+      print ("Send_Server")  
+      self.transport.sendto(_packet, (self.server_ip, self.server_port))
+    except:
+      print('EXCEPTION sending UDP packet')   
 
 
 
