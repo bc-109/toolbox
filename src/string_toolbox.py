@@ -231,6 +231,36 @@ def StringToNormal (s):
 
 
 #===============================================================================
+# Convert a normal string to a Python 3 mutable bytearray 
+#===============================================================================
+ 
+# In  : 'ABCD' 
+# Out : bytearray(b'ABCD')
+
+def StringToByteArray(s):
+  try:
+    ret = bytearray(StringToBytes(s))
+  except:
+    ret = bytearray(0)  
+  return ret  
+
+
+#===============================================================================
+# Convert a normal string to a Python 3 mutable bytearray 
+#===============================================================================
+ 
+# In  : bytearray(b'ABCD')
+# Out : 'ABCD' 
+
+def ByteArrayToString(s):
+  try:
+    ret = s.decode()
+  except:
+    ret=''
+  return ret
+    
+
+#===============================================================================
 # Convert a hexdecimal string to bits string, with zero fillings (16 bits)
 #===============================================================================
 
