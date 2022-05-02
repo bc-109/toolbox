@@ -59,6 +59,20 @@ class cTCPServer():
     self.tcp_local_port = local_port                  # tcp local listening port
     self.clients = cTCPConnectedClients()             # List of clients connected to this server
 
+
+  #---------------------------------------------------------------- Start Server
+  
+  def start_server(self, loop):
+    loop.create_task(self.serve())
+
+
+  #---------------------------------------------------------------- Stop Server
+  
+  async def stop_server (self):
+    self.server.close()
+    await self.server.wait_closed()        
+  
+
   
   #-------------------------------------------------------- Create AsyncIO server
   # If you derive cTCPServer, you'll have to override this one with your own 
@@ -115,9 +129,9 @@ class cTCPServer():
       raise
 
     finally:
-      self.server.close()
-      await self.server.wait_closed()        
-      print ("%s : Server stopped." % self.server_name)
+      print ("%s : Stopping TCP server..." % self.server_name)
+      await (self.stop_server())       
+      print ("%s : TCP Server stopped." % self.server_name)
 
 
 #===============================================================================
@@ -331,7 +345,7 @@ class cTCPClient():
     self.tcp_address = tcp_address
     self.tcp_port = tcp_port
 
-
+  
   #-------------------------------------------------------- Create AsyncIO task
   # If you derive cTCPClient, you'll have to override this one with your own 
   # derived cTCPServerProtocol 
