@@ -98,28 +98,121 @@ def GetIPInterfaceList():
         br = "127.0.0.1" if interface == "lo" else link['broadcast']        # netifaces does not return "broadcast" for loopback, we "simulate" it
         ip_list.append((ad, nm, br))
     except:
-      print ("libnetwork: Unable to get parameters of interface %s :" % (interface))
+      pass
+      # print ("libnetwork: Unable to get parameters of interface %s :" % (interface))
 
   return ip_list
 
 
 #===============================================================================
-# Find a free local port, starting from start_port
+# Check if a local UDP port is free on the selected interface
 #===============================================================================
 
-def FindFreeLocalPort(interface='127.0.0.1', start=50000, max_ports=512 ):
+def CheckFreeLocalPortUDP(interface, port):
 
-  UDPSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-  
-  for port in range(start, start + max_ports):
+    Free = False
     try:
+      UDPSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
       addr = (interface, port)
       UDPSock.bind(addr)
-      break
+      Free = True
     except:
-      port = port + 1
+      Free=False
+    finally:      
+      UDPSock.close()
+    return Free
   
-  UDPSock.close()
+
+#===============================================================================
+# Find a free local UDP port, starting from start_port
+#===============================================================================
+
+def FindFreeLocalPortUDP(interface='127.0.0.1', start=50000, max_ports=1024 ):
+
+  Found = False
+  for port in range(start, start + max_ports):
+    if CheckFreeLocalPortUDP(interface, port) :
+      Found = True
+      break
+    else:
+      port = port + 1
+  if not Found :
+    port = 0  
+  return port
+
+
+#===============================================================================
+# Check if a local TCP port is free on the selected interface
+#===============================================================================
+
+def CheckFreeLocalPortTCP(interface, port):
+
+    Free = False
+    try:
+      TCPSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      addr = (interface, port)
+      TCPSock.bind(addr)
+      Free = True
+    except:
+      Free=False
+    finally:      
+      TCPSock.close()
+    return Free
+  
+
+#===============================================================================
+# Check full TCP connection capabilities
+#===============================================================================
+
+def CheckFullTCPConnection(local_ip, local_port, remote_ip, remote_port):
+
+    OK = False
+    try:
+      TCPSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      addr = (local_ip, local_port)
+      TCPSock.bind(addr)
+      TCPSock.connect((remote_ip, remote_port))
+      OK = True
+    except:
+      OK=False
+    finally:      
+      TCPSock.close()
+    return OK
+
+
+#===============================================================================
+# Find a free local TCP port, starting from start_port
+#===============================================================================
+
+def FindFreeLocalPortTCP(interface='127.0.0.1', start=50000, max_ports=1024 ):
+
+  Found = False
+  for port in range(start, start + max_ports):
+    if CheckFreeLocalPortTCP(interface, port) :
+      Found = True
+      break
+    else:
+      port = port + 1
+  if not Found :
+    port = 0  
+  return port
+
+
+#===============================================================================
+# Find a free local port that is free both in TCP and UDP
+#===============================================================================
+
+def FindFreeLocalPortTCPUDP(interface='127.0.0.1', start=50000, max_ports=1024 ):
+
+  Found = False
+  for port in range(start, start + max_ports):
+    if CheckFreeLocalPortTCP(interface, port) and CheckFreeLocalPortUDP(interface, port):
+      Found = True
+      break
+    else:
+      port = port + 1
+  if not Found :
+    port = 0  
   return port
 
 

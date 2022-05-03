@@ -52,26 +52,33 @@ class cTCPServer():
 
   #----------------------------------------------------------------- Constructor
   
-  def __init__(self, name, local_port):  
+  def __init__(self, loop, name, local_address, local_port):  
   
+    self.loop = loop                                  # AsyncIO running loop
     self.server_name = name
-    self.tcp_local_address = '127.0.0.1'
-    self.tcp_local_port = local_port                  # tcp local listening port
+    self.tcp_local_address = local_address            # TCP server will bind to that IP
+    self.tcp_local_port = local_port                  # TCP server will listen on that port
     self.clients = cTCPConnectedClients()             # List of clients connected to this server
 
+  
 
   #---------------------------------------------------------------- Start Server
   
-  def start_server(self, loop):
-    loop.create_task(self.serve())
+  def start_server(self, name=None):
+    if name==None:
+      name="TCP server at %s:%d" %(self.tcp_local_address, self.tcp_local_port)
+    self.loop.create_task(self.serve(), name=name)
 
 
   #---------------------------------------------------------------- Stop Server
   
   async def stop_server (self):
+    print ('%s : Closing transport for all connected clients...' % self.server_name)
+    self.clients.DisconnectAll()
+    
+    print ('%s : Closing server task...' % self.server_name)
     self.server.close()
     await self.server.wait_closed()        
-  
 
   
   #-------------------------------------------------------- Create AsyncIO server
@@ -79,8 +86,7 @@ class cTCPServer():
   # derived cTCPServerProtocol 
   
   async def create_server(self):
-    loop = asyncio.get_running_loop()
-    self.server = await loop.create_server( lambda: cTCPServerProtocol(parent=self), self.tcp_local_address, self.tcp_local_port)
+    self.server = await self.loop.create_server( lambda: cTCPServerProtocol(parent=self), self.tcp_local_address, self.tcp_local_port)
 
 
   #--------------------------------------------------- Starting / stopping server
@@ -94,7 +100,7 @@ class cTCPServer():
     while not self.started:
 
       try:    
-        print ("%s : Starting TCP server on port %d " % (self.server_name, self.tcp_local_port) )
+        print ("%s : Starting TCP server at %s:%d " % (self.server_name, self.tcp_local_address, self.tcp_local_port) )
         await self.create_server()
               
         print ("%s : TCP server started on port %d " % (self.server_name, self.tcp_local_port) )  
@@ -146,8 +152,17 @@ class cTCPServerProtocol(asyncio.Protocol):
   def __init__(self, parent):    
     self.parent = parent                           # Parent cTCPServer object                             
     self.server_name = self.parent.server_name
+    self.client_name = '<No client details available>'
     self.transport = None
-    
+ 
+  #---------------------------------------------------------- Display procedures
+  
+  def __str__(self):
+    return self.client_name
+  
+  def __repr__(self):
+    return self.client_name
+      
 
   #------------------------------------------------------------- Connection Made
   
@@ -174,10 +189,11 @@ class cTCPServerProtocol(asyncio.Protocol):
       self.parent.clients.AddMember (ip, port, self)   
     else: 
       print ("ERROR - Incoming connection from an already connected client") 
-      # TODO : replace transport (or delete / add)
+      # TODO : reuse existing connexion / replace transport (or delete / add)
     
     # Debug : print list of connected clients  
-    # print ("%s : %s" % (self.server_name, self.parent.clients))  
+    print ("%s : %s" % (self.server_name, self.parent.clients))  
+
 
 
   #---------------------------------------------- Callback when data is received
@@ -292,6 +308,18 @@ class cTCPConnectedClients(object):
       key = '%s:%d' % (ip, port)
       del self.clients[key]
 
+  #------------------------------------------------------ Disconnect all clients
+  
+  def DisconnectAll (self):
+    print("Disconnecting all connected  clients :")
+    if self.clients == {}:
+      print("  <No client connected")
+    else:
+      for c in self.clients:
+        print ("  %s" % (self.clients[c]))
+        self.clients[c].transport.close()
+               
+    
 
 #===============================================================================
 # Class representing one of the TCP connected clients
@@ -317,10 +345,10 @@ class cTCPConnectedClient(object):
     return self.Display()
   
   def Display(self):
-    if True : #try:
+    try:
       # s = "  %s:%d" % (self.ip, self.port)
-      s = "  %s:%d %s" % (self.ip, self.port, repr(self.protocol))
-    else: # except:
+      s = "  %s:%d %s" % (self.ip, self.port, self.protocol)
+    except:
       s = "<Display error>"
     return s
     
@@ -340,21 +368,39 @@ class cTCPClient():
 
   #----------------------------------------------------------------- Constructor
   
-  def __init__(self, name, tcp_address, tcp_port):
+  def __init__(self, loop, name, tcp_address, tcp_port, source_address='', source_port=0):
+    
+    self.loop = loop
     self.taskname = name
     self.tcp_address = tcp_address
     self.tcp_port = tcp_port
+    
+    self.tcp_source_address = source_address         
+    self.tcp_source_port = source_port               
+    self.tcp_source_port_origin = source_port 
+    self.local_addr = (source_address, source_port)  # Tuple required by loop.create_connection()
 
+    self.PORT_RETRIES = 128          # Max attempts of source_port increment in case of previous socket locked in MAX_RETRY
+  
   
   #-------------------------------------------------------- Create AsyncIO task
   # If you derive cTCPClient, you'll have to override this one with your own 
   # derived cTCPServerProtocol 
   
   async def create_connection(self):
-    loop = asyncio.get_running_loop()
-    self.transport, self.protocol = await loop.create_connection( lambda: cTCPClientProtocol(parent=self), self.tcp_address, self.tcp_port)
+    #loop = asyncio.get_running_loop()
+    print ("%s : TCP Client - Creating connection to %s:%d from %s:%d" %(self.taskname, self.tcp_address, self.tcp_port, self.tcp_source_address, self.tcp_source_port))
+    self.transport, self.protocol = await self.loop.create_connection( lambda: cTCPClientProtocol(parent=self), self.tcp_address, self.tcp_port, local_addr=self.local_addr)
 
 
+  #------------------------------------------------------ Schedule AsyncIO task
+  
+  def start_client (self, name=None):
+    if name==None:
+      name="TCP connection to %s:%d" %(self.tcp_address, self.tcp_port)
+    self.loop.create_task(self.connect(), name=name)
+    
+    
   #------------------------------------------------------- Connection management
   
   async def connect (self):
@@ -366,23 +412,35 @@ class cTCPClient():
     while not (self.canceled):
       
       try:
-        print ("%s : Connecting to %s:%d " % (self.taskname, self.tcp_address, self.tcp_port) )
+        print ("%s : TCP Client - Connecting to %s:%d... " % (self.taskname, self.tcp_address, self.tcp_port) )
         await self.create_connection()
         self.connected = True
         
       except ConnectionRefusedError:
-        print("%s : Connection refused." % self.taskname)
+        print("%s : TCP client - Connection refused." % self.taskname)
         
       except asyncio.CancelledError : 
-        print("%s : Connection canceled - Stopping." % self.taskname)
+        print("%s : TCP Client - Connection canceled - Stopping." % self.taskname)
         self.canceled = True
         self.connected = False
           
       except TimeoutError :
-        print("%s : Unable to connect to %s : Timeout." % (self.taskname, self.tcp_address))
-              
+        print("%s : TCP Client - Unable to connect to %s : Timeout." % (self.taskname, self.tcp_address))
+           
+      except OSError :
+        print("%s : TCP Client - OS error (possibly wrong source IP or source port)." % (self.taskname))
+        self.connected = False 
+        self.PORT_RETRIES = self.PORT_RETRIES - 1
+        if self.PORT_RETRIES > 0:
+          self.tcp_source_port = self.tcp_source_port + 1   
+          print("%s : TCP Client - Incrementing source port. Will retry from %s:%d)." % (self.taskname, self.tcp_source_address, self.tcp_source_port))  
+        else:
+          self.tcp_source_port = self.tcp_source_port_origin              
+          print("%s : TCP Client - Reverting back to original source port. Will retry from %s:%d)." % (self.taskname, self.tcp_source_address, self.tcp_source_port))  
+        self.local_addr = (self.tcp_source_address, self.tcp_source_port)
+      
       except:
-        print("%s : Unknown exception. " % self.taskname)
+        print("%s : TCP Client - Unknown exception. " % self.taskname)
         raise
 
              
@@ -391,24 +449,25 @@ class cTCPClient():
         # We are connected. We do nothing here. Just wait for callbacks or external signals
         
         try:
-          print ("%s : Entering reception loop" % self.taskname)
+          print ("%s : TCP Client - Connected, entering reception loop" % self.taskname)
           while self.connected:
             await asyncio.sleep(1)
+            # print('Connected : %s' % (self.connected))
         
         except asyncio.CancelledError : 
-          print("%s : Task canceled"  % self.taskname)
+          print("%s : TCP Client - Task canceled"  % self.taskname)
           self.canceled = True
                 
         except asyncio.TimeoutError :
-          print("%s : Timeout" % self.taskname)    
+          print("%s : TCP Client - Timeout" % self.taskname)    
           self.connected = False
           
         except asyncio.InvalidStateError:
-          print("%s : Invalid State"  % self.taskname)
+          print("%s : TCP Client - Invalid State"  % self.taskname)
           self.canceled = True
           
         except:
-          print ("%s : Unknown exception" % self.taskname)
+          print ("%s : TCP Client - Unknown exception" % self.taskname)
           raise
               
               
@@ -416,16 +475,16 @@ class cTCPClient():
          
         # Connection was lost, but not canceled. We'll retry later.
             
-        print ("%s : Retry in 5 seconds" % self.taskname)
+        print ("%s : TCP Client - Retry in 1 second" % self.taskname)
         try :
-          await asyncio.sleep(5)                     
+          await asyncio.sleep(1)                     
         except asyncio.CancelledError : 
-          print("%s : Retry canceled." % self.taskname)
+          print("%s : TCP Client - Retry canceled." % self.taskname)
           self.canceled = True
     
     # end while
     
-    print ("%s : Closing transport" % self.taskname)
+    print ("%s : TCP Client - Closing transport." % self.taskname)
     self.transport.close()  
   
 
@@ -443,7 +502,6 @@ class cTCPClientProtocol(asyncio.Protocol):
     self.taskname = parent.taskname
     self.tcp_address = parent.tcp_address
     self.tcp_port = parent.tcp_port
-    self.buffer = b''                               # Buffer for stream data receiving
     self.transport = None
 
 
@@ -474,8 +532,8 @@ class cTCPClientProtocol(asyncio.Protocol):
   
   def connection_lost(self, exc):
     print('%s : The server closed the connection' % self.taskname)
-    self.connected = False 
-
+    self.parent.connected = False 
+    
 
 ################################################################################
 #                                                                              #

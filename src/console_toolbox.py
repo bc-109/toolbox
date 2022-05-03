@@ -115,7 +115,7 @@ class cKeyboard():
   #-------------------------------------------------- Schedule AsyncIO coroutine
   
   def Start(self, loop):
-    loop.create_task (self.WaitForKeyPressed()) 
+    loop.create_task (self.WaitForKeyPressed(), name="Keyboard task") 
     
       
   #------------------------------------- AsyncIO coroutine - Check if keypressed
