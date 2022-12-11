@@ -246,7 +246,7 @@ def StringToByteArray(s):
 
 
 #===============================================================================
-# Convert a normal string to a Python 3 mutable bytearray 
+# Convert a Python 3 mutable bytearray to normal string 
 #===============================================================================
  
 # In  : bytearray(b'ABCD')
