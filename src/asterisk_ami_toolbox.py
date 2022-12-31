@@ -39,7 +39,6 @@ VersionDate = "30/12/2022"
 # ---- Python standard imports
 
 import asyncio
-import logging
 
 
 # ---- Third-party module imports (install with pip)
@@ -61,8 +60,10 @@ class cPanoramiskManager ():
   
   # ---------------------------------------------------------------- Constructor
   
-  def __init__ (self, host, port, username, secret):
+  def __init__ (self, loop, logger, host, port, username, secret):
     
+    self.loop = loop
+    self.logger = logger
     self.host = host
     self.port = port
     self.username = username
@@ -87,27 +88,27 @@ class cPanoramiskManager ():
     self.manager.on_login = self.OnLogin
     self.manager.on_disconnect = self.OnDisconnect
     
-    logging.info ("Starting Asterisk Manager Interface AsyncIO task")
+    self.logger.info ("Starting Asterisk Manager Interface AsyncIO task")
     self.manager.connect (run_forever=True, on_startup=self.OnStartup, on_shutdown=self.OnShutdown)
   
   
   # ----------------------------------------------------------------- On Connect
   
   def OnConnect (self, mngr: panoramisk.Manager):
-    logging.info ('Connected to %s:%s AMI socket successfully' % (mngr.config ['host'], mngr.config ['port']))
+    self.logger.info ('Connected to %s:%s AMI socket successfully' % (mngr.config ['host'], mngr.config ['port']))
   
   
   # ------------------------------------------------------------------- On Login
   
   def OnLogin (self, mngr: panoramisk.Manager):
-    logging.info ('Connected user:%s to AMI %s:%s successfully' % (
+    self.logger.info ('Connected user:%s to AMI %s:%s successfully' % (
     mngr.config ['username'], mngr.config ['host'], mngr.config ['port']))
   
   
   # -------------------------------------------------------------- On Disconnect
   
   def OnDisconnect (self, mngr: panoramisk.Manager, exc: Exception):
-    logging.info (
+    self.logger.info (
       'Disconnect user:%s from AMI %s:%s' % (mngr.config ['username'], mngr.config ['host'], mngr.config ['port']))
     logging.debug (str (exc))
     
@@ -116,24 +117,24 @@ class cPanoramiskManager ():
   
   async def OnStartup (self, mngr: panoramisk.Manager):
     await asyncio.sleep (0.1)
-    logging.info ('Asterisk AMI session started. Registering all events...')
+    self.logger.info ('Asterisk AMI session started. Registering all events...')
     self.manager.register_event ('*', callback=self.callback)
   
   
   # ---------------------------------------------------------------- On Shutdown
   async def OnShutdown (self, mngr: panoramisk.Manager):
     await asyncio.sleep (0.1)
-    logging.info ('Shutdown AMI connection on %s:%s' % (mngr.config ['host'], mngr.config ['port']))
+    self.logger.info ('Shutdown AMI connection on %s:%s' % (mngr.config ['host'], mngr.config ['port']))
   
   
   # --------------------------------------------------- Send command to Asterisk
   
   async def SendCommand (self, command):
     
-    logging.info  ("Sending command : [%s]" % (command))
+    self.logger.info  ("Sending command : [%s]" % (command))
     answer = await self.manager.send_command (command)
     
-    logging.info  ("Command sent. Received answer : [%s]" % (answer))
+    self.logger.info  ("Command sent. Received answer : [%s]" % (answer))
 
 
   # ------------------------------------------------ Callback when data received
@@ -146,10 +147,10 @@ class cPanoramiskManager ():
       if msg is not None:
       
         event = msg.Event
-        logging.info  ("[%s] %s" %(event, msg))
+        self.logger.info  ("[%s] %s" %(event, msg))
     
     except:
-      logging.info  ("Exception processing message")
+      self.logger.info  ("Exception processing message")
 
 
 ################################################################################

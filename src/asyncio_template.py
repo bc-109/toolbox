@@ -75,25 +75,28 @@ class cTestClass():
   
   #---------------------------------------------------------------- Constructor
 
-  def __init__(self, loop, name):
+  def __init__(self, loop, logger, name):
 
     # Call init of parent class if needed
     # super().__init__(loop, parameters)
 
     # Specific settings for this subclass
     self.loop = loop
+    self.logger = logger
     self.name = name
+    
     self.running = False
+    self.canceled = False
 
 
   # ---------------------------------------------- Start related AsyncIO tasks
 
   def Start (self):
     
-    logger.info ("%s starting AsyncIO task : Main Loop..." % self.name )
+    self.logger.info ("%s starting AsyncIO task : Main Loop..." % self.name )
     self.loop.create_task (self.MainLoop (), name="%s main loop" % self.name)
 
-    logger.info ("%s starting AsyncIO task : Heartbeat..." % self.name )
+    self.logger.info ("%s starting AsyncIO task : Heartbeat..." % self.name )
     self.loop.create_task (self.HeartBeat (), name="%s heartbeat" % self.name)
 
 
@@ -101,35 +104,55 @@ class cTestClass():
 
   async def MainLoop (self):
     
-    try:
-      while True:
+    while not self.canceled:
+  
+      try:
       
         # ---- Start / Connect to server
-        logger.info ("%s Main Loop - Starting / connecting..." % self.name)
+        self.logger.info ("%s Main Loop - Starting / connecting..." % self.name)
         # await self.client.connect (self.hostname)
-        logger.info ("%s Main Loop - Connected / running." % self.name)
+        self.logger.info ("%s Main Loop - Connected / running." % self.name)
         self.running = True
       
         # ---- Do something
-        await asyncio.sleep(10)
+        while self.running :
+          print ('.... Main loop running')
+          await asyncio.sleep(1)
         
-        # ---- Await for external event
-        # await self.stopflag.wait ()
-        # logger.info ("  Received STOP event")
+          # ---- Await for external event
+          # await self.stopflag.wait ()
       
-        # ---- Await for disconnect event
+        # ---- Disconnect
         # await self.client.disconnect ()
-        logger.info ("%s Main Loop - Stopped / disconnected." % self.name)
+        self.logger.info ("%s Main Loop - Stopped / disconnected." % self.name)
         self.running = False
         
         # ---- Pause before restarting
         await asyncio.sleep (3)
 
-    except asyncio.CancelledError :
-      logger.info ("%s Main Loop - Received cancelation request" % self.name)
-      # --- Clean up things here
-      pass
-      logger.info ("%s Main Loop - Task terminated gracefully." % self.name)
+
+      # ---- Task canceled (receiving Ctrl+C or termination signal)
+
+      except asyncio.CancelledError :
+        self.logger.info ("%s Main Loop - Received STOP request" % self.name)
+        # --- Clean up things here
+        pass
+        self.logger.info ("%s Main Loop - Task terminated gracefully." % self.name)
+        self.canceled = True
+
+      # ---- Communication errors
+
+      except ConnectionRefusedError:
+        self.logger.info ("%s Main Loop - Connection refused." % self.client_id)
+
+      except TimeoutError:
+        self.logger.info ("%s Main Loop - Connection timeout." % self.client_id)
+
+      # ---- Unhandled exception
+
+      except:
+        self.logger.info ("%s Main Loop - Unhandled exception." % self.client_id)
+        raise
 
 
   #---------------------------------- Example of heartbeat task for this class
@@ -140,15 +163,15 @@ class cTestClass():
       while True:
         # ---- Do something
         if self.running:
-          logger.info ("%s Heartbeat" % self.name)
+          self.logger.info ("%s Heartbeat" % self.name)
         
         # ---- Sleep
         await asyncio.sleep (1)
   
     except asyncio.CancelledError:
-      logger.info ("%s Heartbeat - Received cancelation request" % self.name)
+      self.logger.info ("%s Heartbeat - Received STOP request" % self.name)
       # Clean up things here
-      logger.info ("%s Heartbeat - Task terminated gracefully." % self.name)
+      self.logger.info ("%s Heartbeat - Task terminated gracefully." % self.name)
 
 
 ################################################################################
@@ -191,7 +214,7 @@ if __name__ == "__main__":
   # ---- Instantiate AsyncIO classes
   
   logger.info ('Initializing test class...')
-  Test = cTestClass (loop, 'TESTNAME')
+  Test = cTestClass (loop, logger, 'TEST')
 
   
   # ------------------------------------------------------- Main asynchronous loop

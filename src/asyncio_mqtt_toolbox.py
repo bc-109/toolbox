@@ -38,8 +38,6 @@ VersionDate = "30/12/2022"
 # ---- Python standard imports
 
 import asyncio
-import logging
-import signal
 
 
 # ---- Third-party module imports (install with pip)
@@ -129,7 +127,6 @@ class cGMQTTClient ():
           print("...connected")
           await asyncio.sleep(1)
         
-    
       
       # ---- Task canceled (receiving Ctrl+C or termination signal)
       
