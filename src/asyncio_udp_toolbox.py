@@ -41,7 +41,6 @@ import asyncio
 
 # Toolbox library imports (get those files and put them in the same folder as your app)
 
-# from network_toolbox import CheckUpdateHost
 from string_toolbox import DumpBufferHexa
 
 

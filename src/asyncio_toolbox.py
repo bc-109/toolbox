@@ -42,50 +42,46 @@ import signal
 
 ################################################################################
 #                                                                              #
-#                             ASYNCIO SHUTDOWN                                 #
+#                       ASYNCIO GRACEFUL SHUTDOWN                              #
 #                                                                              # 
 ################################################################################    
-    
 
 #===============================================================================
 # Set event handlers on desired signals for shutdown (Linux only)
 #===============================================================================
 
-
-def SetShutdownSignals(loop):
+def SetShutdownSignals(loop, logger):
     
   if platform.system() != "Windows":
-    print('Shutdown : Initializing signals...')
+    logger.info('Shutdown : Initializing signals...')
     signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)  #  Not available on Windows
     for s in signals:
-      loop.add_signal_handler(s, lambda s=s: asyncio.create_task(AsyncIOShutdown(loop, signal=s)))
+      loop.add_signal_handler(s, lambda s=s: asyncio.create_task(AsyncIOShutdown(loop, logger, signal=s)))
   else:
-    print ('Shutdown : Signals not supported (running in Windows)')
+    logger.info('Shutdown : Using signal handlers is not supported in Windows')
   
 
 #===============================================================================
-# AsyncIO graceful shutdown / Cancel pending tasks
+# AsyncIO graceful shutdown : cancel pending tasks and stop loop
 #===============================================================================
 
-async def AsyncIOShutdown(loop, signal=None):
+async def AsyncIOShutdown(loop, logger, signal=None):
   
   if platform.system() != "Windows":
-    print (f"Shutdown : Received exit signal {signal.name}...")
+    logger.info (f"Shutdown : Received exit signal {signal.name}...")
    
-  print ("Shutdown : Scheduling cancelation for all running tasks...")
+  logger.info ("Shutdown : Scheduling cancellation for all running tasks...")
   tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-  # print(tasks)
+  # dprint(tasks)
   for task in tasks:
-    print(" - %s" % (task.get_name()))
-    # print("Task details : %s" %(task))
+    logger.info(" Task : %s" % (task.get_name()))
+    # dprint("Task details : %s" %(task))
     task.cancel()
-  print (f"Shutdown : Requested cancelation for {len(tasks)} tasks...")
+  logger.info (f"Shutdown : Requested cancellation for {len(tasks)} tasks...")
   await asyncio.gather(*tasks, return_exceptions=True)
-  print (f"Shutdown : All tasks canceled. Stopping AsyncIO loop.")
+  logger.info (f"Shutdown : All tasks are now canceled. Stopping AsyncIO loop.")
   loop.stop()
 
-
-  
 
 ################################################################################
 #                                                                              #
