@@ -2,17 +2,23 @@
 
 ## What is it ? ##
 
-This is a set of Python 3 libraries used in various other projects :
+This is a set of Python3 libraries used in various other projects :
 
 - **AsyncIO** generic toolbox
 - **AsyncIO TCP** client and server
-- **AsyncIO UDP** client and server
+- **AsyncIO UDP** client
+- **AsyncIO MQTT** client (using gmqtt)
+- **AsyncIO Asterisk AMI** TCP client
 - **Audio** toolbox
 - **Buffering** / queues
 - **Console** / input / output
 - **Network** generic tools
+- **Logging** tools
 - **String** utilities, type conversions (including Python 3 strings)
 - **Time** utilities
+
+Plus some other things :
+- **AsyncIO template** for building AsyncIO apps with proper task cancellation.
 
 ## How to use it ? ##
 
