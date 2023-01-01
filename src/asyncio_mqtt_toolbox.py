@@ -70,7 +70,7 @@ import gmqtt
 
 class cGMQTTClient ():
   
-  # ---------------------------------------------------------------- Constructor
+  #----------------------------------------------------------------- Constructor
   
   def __init__ (self, loop, logger, hostname='127.0.0.1', client_id="default-mqtt-client"):
     
@@ -95,7 +95,7 @@ class cGMQTTClient ():
       self.client.on_subscribe = self.OnSubscribe
   
   
-  # ------------------------------------------- Start MQTT session to the broker
+  #-------------------------------------------- Start MQTT session to the broker
   
   def Start (self):
     
@@ -103,7 +103,7 @@ class cGMQTTClient ():
     self.loop.create_task (self.MainLoop (), name = "%s MainLoop" % self.client_id)
   
   
-  # ----------------------------------------------- Main asynchronous process
+  #------------------------------------------------ Main asynchronous process
   
   async def MainLoop (self):
 
@@ -115,81 +115,87 @@ class cGMQTTClient ():
         # ---- Start / Try to connect to server
         
         if (self.connected == 'FAILED') or (self.connected == "DISCONNECTED"):
-          self.logger.info ("%s Main Loop - Previous MQTT connection failed. Will retry in 5s..." % self.client_id)
+          self.logger.info ("%s (Main Loop) Previous MQTT connection failed. Will retry in 5s..." % self.client_id)
           await asyncio.sleep(5)
           
-        self.logger.info ("%s Main Loop - MQTT connecting to broker..." % self.client_id)
+        self.logger.info ("%s (Main Loop) MQTT connecting to broker..." % self.client_id)
         await self.client.connect (self.hostname)
-        self.logger.info ("%s Main Loop - MQTT connected to broker." % self.client_id)
+        self.logger.info ("%s (Main Loop) MQTT connected to broker." % self.client_id)
     
         while self.connected == 'CONNECTED' :
-          # We are connected / nothing to do here.
-          print("...connected")
+          # We are connected
+          # print("...MQTT connected")
           await asyncio.sleep(1)
         
       
       # ---- Task canceled (receiving Ctrl+C or termination signal)
       
       except asyncio.CancelledError:
-        self.logger.info ("%s Main Loop - Received STOP request" % self.client_id)
+        self.logger.info ("%s (Main Loop) Received STOP request" % self.client_id)
         
         # Clean up things here
         
-        if self.connected == 'CONNECTED':
-          self.logger.info ("%s Main Loop - Disconnecting from MQTT broker..." % self.client_id)
+        if self.connected == 'CONNECTED' :
+          self.logger.info ("%s (Main Loop) Disconnecting from MQTT broker..." % self.client_id)
           await self.client.disconnect ()
-          self.logger.info ("%s Main Loop - MQTT broker disconnected." % self.client_id)
+          self.logger.info ("%s (Main Loop) MQTT broker disconnected." % self.client_id)
   
-        self.logger.info ("%s Main Loop - Task stopped gracefully." % self.client_id)
+        self.logger.info ("%s (Main Loop) Task stopped gracefully." % self.client_id)
         self.canceled = True
   
       # ---- Communication errors
       
       except ConnectionRefusedError :
-        self.logger.info ("%s Main Loop - Connection refused." % self.client_id)
+        self.logger.info ("%s (Main Loop) Connection refused." % self.client_id)
         self.connected = 'FAILED'
         
       except TimeoutError :
-        self.logger.info ("%s Main Loop - Connection timeout." % self.client_id)
+        self.logger.info ("%s (Main Loop) Connection timeout." % self.client_id)
         self.connected = 'FAILED'
   
       # ---- Unhandled exception
       
       except:
-        self.logger.info ("%s Main Loop - Unhandled exception." % self.client_id)
+        self.logger.info ("%s (Main Loop) Unhandled exception." % self.client_id)
         self.connected = 'FAILED'
         raise
 
 
 
-  # ------------------------------------------------ On successful connection
+  #------------------------------------------------- On successful connection
   
   def OnConnect (self, client, flags, rc, properties):
-    self.logger.info ('%s > MQTT Callback : client connected to broker.' % self.client_id)
+    self.logger.info ('%s > Client connected to broker.' % self.client_id)
     self.connected = 'CONNECTED'
     # client.subscribe ('TEST/#', qos=0)
 
 
-  # ----------------------------------------------------------- On Disconnect
+  #------------------------------------------------------------ On Disconnect
 
   def OnDisconnect (self, client, packet, exc=None):
-    self.logger.info ('%s > MQTT Callback : disconnected from broker.' % self.client_id)
+    self.logger.info ('%s > Disconnected from broker.' % self.client_id)
     self.connected = 'DISCONNECTED'
 
 
-  # ----------------------------------------------------- On received message
+  #------------------------------------------------------ On received message
   
   def OnMessage (self, client, topic, payload, qos, properties):
-    self.logger.info ('%s > MQTT Callback : received message [%s] %s:', self.client_id, topic, payload)
+    self.logger.info ('%s > Received MQTT message [%s] %s:', self.client_id, topic, payload)
   
-  
-  
-  # --------------------------------------------------------- On Subscription
+    
+  #---------------------------------------------------------- On Subscription
   
   def OnSubscribe (self, client, mid, qos, properties):
     print ('%s MQTT Subscribed' % self.client_id)
   
 
+  #------------------------------------------------------- Publishing messages
+
+  def Publish(self, topic, message):
+    if (self.client is not None) and (self.connected == 'CONNECTED'):
+      self.client.publish (topic, message)
+      self.logger.info ('%s > Published message : [%s] %s' % (self.client_id, topic, message))
+      
 
 ################################################################################
 #                                                                              #

@@ -60,16 +60,20 @@ class cPanoramiskManager ():
   
   # ---------------------------------------------------------------- Constructor
   
-  def __init__ (self, loop, logger, host, port, username, secret):
+  def __init__ (self, loop, logger, taskname, host, port, username, secret):
     
     self.loop = loop
     self.logger = logger
-    self.host = host
+    self.taskname = taskname              # Namre of the task in AsyncIO
+    self.host = host                      # MQTT broker
     self.port = port
     self.username = username
     self.secret = secret
     
     self.callback = self.Callback
+    
+    self.connected = 'DISCONNECTED'        # DISCONNECTED, CONNECTING, LOGGING, CONNECTED, FAILED
+    self.canceled = False
     
     self.manager = panoramisk.Manager (host=self.host,
                                        port=self.port,
@@ -78,53 +82,120 @@ class cPanoramiskManager ():
                                        ping_delay=10,  # Delay after startup
                                        ping_interval=10,  # Periodically ping AMI
                                        reconnect_timeout=2)  # Timeout reconnect if connection lost
+    if self.manager is None:
+      self.logger.info ("Error initializing Panoramisk manager %s " % (self.taskname))
+    else:
+      self.manager.on_connect = self.OnConnect
+      self.manager.on_login = self.OnLogin
+      self.manager.on_disconnect = self.OnDisconnect
   
   
-  # ------------------------------------- Start Asterisk AMI AsyncIO TCP session
+  #---------------------------------------- Schedule start of Asterisk main loop
+
+  def Start(self):
+    self.logger.info ("%s Starting main asynchronous loop..." % self.taskname)
+    self.loop.create_task (self.MainLoop (), name="%s MainLoop" % self.taskname)
   
-  def Start (self):
+  
+  #------------------------------------------ Asterisk AMI TCP session main loop
+  
+  
+  # OLD MainLoop
+  #  self.manager.connect (run_forever=True, on_startup=self.OnStartup, on_shutdown=self.OnShutdown)
+
+  async def MainLoop (self):
+  
+    self.connected = 'NONE'
+    while not self.canceled:
     
-    self.manager.on_connect = self.OnConnect
-    self.manager.on_login = self.OnLogin
-    self.manager.on_disconnect = self.OnDisconnect
+      try:
+      
+        # ---- Start / Try to connect to server
+      
+        if (self.connected == 'FAILED') or (self.connected == "DISCONNECTED"):
+          self.logger.info ("%s (Main Loop) Previous Asterisk connection failed. Will retry in 5s..." % self.taskname)
+          await asyncio.sleep (5)
+      
+        self.logger.info ("%s (Main Loop) Connecting to Asterisk at %s:%s..." % (self.taskname, self.host, self.port))
+        await self.manager.connect (run_forever=False, on_startup=self.OnStartup, on_shutdown=self.OnShutdown)
+        self.connected = 'CONNECTING'
+        
+        while self.connected != 'READY':
+          # print ("...Waiting for connection and login")
+          await asyncio.sleep (1)
+
+        self.logger.info ("%s (Main Loop) Registering Asterisk events..." % self.taskname)
+        self.manager.register_event ('*', callback=self.callback)
+        
+        while self.connected == 'READY':
+          # We are connected and logged in
+          # print ("...Asterisk normal loop - READY")
+          await asyncio.sleep (1)
     
-    self.logger.info ("Starting Asterisk Manager Interface AsyncIO task")
-    self.manager.connect (run_forever=True, on_startup=self.OnStartup, on_shutdown=self.OnShutdown)
-  
-  
+    
+      # ---- Task canceled (receiving Ctrl+C or termination signal)
+    
+      except asyncio.CancelledError:
+        self.logger.info ("%s (Main Loop) Received STOP request" % self.taskname)
+        # Clean up things here
+      
+        if self.connected in ('CONNECTED', 'LOGGING', 'READY'):
+          self.logger.info ("%s (Main Loop) Disconnecting from Asterisk..." % self.taskname)
+          await self.manager.close ()
+          self.logger.info ("%s (Main Loop) Asterisk disconnected." % self.taskname)
+      
+        self.logger.info ("%s (Main Loop) Task stopped gracefully." % self.taskname)
+        self.canceled = True
+    
+      # ---- Communication errors
+    
+      except ConnectionRefusedError:
+        self.logger.info ("%s (Main Loop) Connection refused." % self.taskname)
+        self.connected = 'FAILED'
+    
+      except TimeoutError:
+        self.logger.info ("%s (Main Loop) Connection timeout." % self.taskname)
+        self.connected = 'FAILED'
+    
+      # ---- Unhandled exception
+    
+      except:
+        self.logger.info ("%s (Main Loop) Unhandled exception." % self.taskname)
+        self.connected = 'FAILED'
+        raise
+
+
   # ----------------------------------------------------------------- On Connect
   
   def OnConnect (self, mngr: panoramisk.Manager):
-    self.logger.info ('Connected to %s:%s AMI socket successfully' % (mngr.config ['host'], mngr.config ['port']))
-  
+    self.logger.info ('%s > Connected to AMI socket. Trying to login with [%s]...' % (self.taskname, self.username))
+    self.connected = 'LOGGING'
+    
   
   # ------------------------------------------------------------------- On Login
   
   def OnLogin (self, mngr: panoramisk.Manager):
-    self.logger.info ('Connected user:%s to AMI %s:%s successfully' % (
-    mngr.config ['username'], mngr.config ['host'], mngr.config ['port']))
+    self.logger.info ('%s > User [%s] logged in to AMI. Ready.' % (self.taskname, mngr.config ['username']))
+    self.connected = 'READY'
   
   
   # -------------------------------------------------------------- On Disconnect
   
   def OnDisconnect (self, mngr: panoramisk.Manager, exc: Exception):
-    self.logger.info (
-      'Disconnect user:%s from AMI %s:%s' % (mngr.config ['username'], mngr.config ['host'], mngr.config ['port']))
-    logging.debug (str (exc))
+    self.logger.info ('%s > User [%s] disconnected from AMI.' % (self.taskname, mngr.config ['username']))
+    # self.logger.debug (str (exc))
+    self.connected = 'DISCONNECTED'
     
     
   # ----------------------------------------------------------------- On Startup
   
   async def OnStartup (self, mngr: panoramisk.Manager):
-    await asyncio.sleep (0.1)
-    self.logger.info ('Asterisk AMI session started. Registering all events...')
-    self.manager.register_event ('*', callback=self.callback)
-  
+    self.logger.info ('%s > Asterisk AMI startup complete.' % self.taskname)
+
   
   # ---------------------------------------------------------------- On Shutdown
   async def OnShutdown (self, mngr: panoramisk.Manager):
-    await asyncio.sleep (0.1)
-    self.logger.info ('Shutdown AMI connection on %s:%s' % (mngr.config ['host'], mngr.config ['port']))
+    self.logger.info ('%s > Shutdown AMI connection.' % (self.taskname))
   
   
   # --------------------------------------------------- Send command to Asterisk
@@ -133,7 +204,6 @@ class cPanoramiskManager ():
     
     self.logger.info  ("Sending command : [%s]" % (command))
     answer = await self.manager.send_command (command)
-    
     self.logger.info  ("Command sent. Received answer : [%s]" % (answer))
 
 
@@ -145,12 +215,11 @@ class cPanoramiskManager ():
     
     try:
       if msg is not None:
-      
         event = msg.Event
         self.logger.info  ("[%s] %s" %(event, msg))
     
     except:
-      self.logger.info  ("Exception processing message")
+      self.logger.info  ("Callback - Exception processing message")
 
 
 ################################################################################
